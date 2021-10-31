@@ -14,6 +14,7 @@ import (
 
 // e.g. {"wifi":-73,"pm02":297,"rco2":1009,"atmp":26.10,"rhum":51}
 type metric struct {
+	Id   string  `json:"-"`
 	Wifi int     `json:"wifi"`
 	PM25 int     `json:"pm02"`
 	CO2  int     `json:"rco2"`
@@ -44,6 +45,16 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, errMsg, http.StatusBadRequest)
 		return
 	}
+	vars := mux.Vars(r)
+	// get id from variable
+	instanceId := "null"
+	if id, ok := vars["id"]; ok {
+		splitted := strings.Split(id, ":")
+		if len(splitted) == 2 {
+			instanceId = splitted[1]
+		}
+	}
+	met.Id = instanceId
 
 	logrus.Debugf("received metric: %s", string(b))
 
@@ -79,16 +90,6 @@ rhum %d
 `
 
 func metricHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	// get id from variable
-	instanceId := "null"
-	if id, ok := vars["id"]; ok {
-		splitted := strings.Split(id, ":")
-		if len(splitted) == 2 {
-			instanceId = splitted[1]
-		}
-	}
-
 	// get last metric data
 	var met metric
 	metricMutex.RLock()
@@ -96,7 +97,7 @@ func metricHandler(w http.ResponseWriter, r *http.Request) {
 	metricMutex.RUnlock()
 
 	// write into response
-	template := fmt.Sprintf(metricTemplate, instanceId, met.Wifi, met.PM25, met.CO2, met.Temp, met.Hum)
+	template := fmt.Sprintf(metricTemplate, met.Id, met.Wifi, met.PM25, met.CO2, met.Temp, met.Hum)
 	if _, err := w.Write([]byte(template)); err != nil {
 		errMsg := "failed to write response"
 		logrus.Error(errMsg)
