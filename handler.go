@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
@@ -14,7 +16,9 @@ import (
 
 // e.g. {"wifi":-73,"pm02":297,"rco2":1009,"atmp":26.10,"rhum":51}
 type metric struct {
-	Id   string  `json:"-"`
+	Id string `json:"-"`
+	Ts int64  `json:"ts,omitempty"`
+
 	Wifi int     `json:"wifi"`
 	PM25 int     `json:"pm02"`
 	CO2  int     `json:"rco2"`
@@ -24,7 +28,7 @@ type metric struct {
 
 var (
 	metricMutex sync.RWMutex
-	lastMetric  metric
+	lastMetric  *metric
 )
 
 func mainHandler(w http.ResponseWriter, r *http.Request) {
@@ -59,6 +63,7 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 	logrus.Debugf("received metric: %s", string(b))
 
 	// store into lastMetric
+	now := time.Now().Unix()
 	metricMutex.Lock()
 	defer metricMutex.Unlock()
 	// use last value when CO2 censor return invalid value
@@ -69,7 +74,20 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 	if met.PM25 <= 0 {
 		met.PM25 = lastMetric.PM25
 	}
-	lastMetric = met
+	met.Ts = now
+	lastMetric = &met
+
+	go func(m metric) {
+		b, err := json.Marshal(m)
+		if err != nil {
+			logrus.WithError(err).Error("failed to marshal metric into json")
+			return
+		}
+		if err := os.WriteFile(config.BackupFilename, b, 0644); err != nil {
+			logrus.WithError(err).Error("failed to write into file")
+			return
+		}
+	}(met)
 }
 
 const metricTemplate = `
@@ -101,7 +119,26 @@ func metricHandler(w http.ResponseWriter, r *http.Request) {
 	// get last metric data
 	var met metric
 	metricMutex.RLock()
-	met = lastMetric
+	if lastMetric == nil {
+		// if lastMetric is nil, try to load last metric from file
+		b, err := os.ReadFile(config.BackupFilename)
+		if err != nil {
+			logrus.WithError(err).Errorf("failed to read init data")
+		} else {
+			var met_ metric
+			if err := json.Unmarshal(b, &met_); err != nil {
+				logrus.WithError(err).Errorf("failed to unmarshal init data")
+			} else {
+				now := time.Now().Unix()
+				if now-met_.Ts < config.MaxTimeDelta {
+					// restore from local file only when time diff is less than `maxTimeDelta`
+					met = met_
+				}
+			}
+		}
+	} else {
+		met = *lastMetric
+	}
 	metricMutex.RUnlock()
 
 	// write into response

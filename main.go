@@ -12,6 +12,10 @@ import (
 type configStruct struct {
 	// http listen addr
 	ListenAddr string `env:"LISTEN_ADDR" envDefault:"0.0.0.0:12321"`
+	// last metric backup file name
+	BackupFilename string `env:"BACKUP_FILENAME" envDefault:"/tmp/airgradient.json"`
+	// max time diff when restoring last metric from file
+	MaxTimeDelta int64 `env:"MAX_TIME_DELTA" envDefault:"60"`
 }
 
 var config configStruct
