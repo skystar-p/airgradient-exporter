@@ -61,6 +61,10 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 	// store into lastMetric
 	metricMutex.Lock()
 	defer metricMutex.Unlock()
+	// use last value when CO2 censor return invalid value
+	if met.CO2 <= 0 {
+		met.CO2 = lastMetric.CO2
+	}
 	lastMetric = met
 }
 
