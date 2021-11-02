@@ -65,6 +65,10 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 	if met.CO2 <= 0 {
 		met.CO2 = lastMetric.CO2
 	}
+	// also for PM25
+	if met.PM25 <= 0 {
+		met.PM25 = lastMetric.PM25
+	}
 	lastMetric = met
 }
 
