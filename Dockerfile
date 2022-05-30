@@ -7,5 +7,5 @@ RUN go build -o airgradient-exporter
 
 FROM alpine:3.16
 MAINTAINER Jaehyeon Park <skystar@skystar.dev>
-COPY --from=build /app/airgradient-exporter /app
-ENTRYPOINT ["/app/airgradient-exporter"]
+COPY --from=build /app/airgradient-exporter /
+ENTRYPOINT ["/airgradient-exporter"]
