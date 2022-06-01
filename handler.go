@@ -35,7 +35,7 @@ var (
 
 func mainHandler(w http.ResponseWriter, r *http.Request) {
 	if config.EnableBasicAuth {
-		ok, errMsg := checkBasicAuthCredential(r)
+		ok, errMsg := checkBasicAuthCredential(w, r)
 		if !ok {
 			logrus.Error(errMsg)
 			http.Error(w, errMsg, http.StatusUnauthorized)
@@ -129,7 +129,7 @@ rhum %d
 
 func metricHandler(w http.ResponseWriter, r *http.Request) {
 	if config.EnableBasicAuth {
-		ok, errMsg := checkBasicAuthCredential(r)
+		ok, errMsg := checkBasicAuthCredential(w, r)
 		if !ok {
 			logrus.Error(errMsg)
 			http.Error(w, errMsg, http.StatusUnauthorized)
@@ -172,10 +172,11 @@ func metricHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func checkBasicAuthCredential(r *http.Request) (bool, string) {
+func checkBasicAuthCredential(w http.ResponseWriter, r *http.Request) (bool, string) {
 	username, password, ok := r.BasicAuth()
 	if !ok {
 		errMsg := "failed to get basic auth credential"
+		w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
 		return false, errMsg
 	}
 	hashedUsername := sha256.Sum256([]byte(username))
