@@ -53,8 +53,9 @@ func main() {
 		WriteTimeout: time.Second * 10,
 	}
 
+	logrus.Infof("serving server at %s...", config.ListenAddr)
 	// run http server
 	if err := server.ListenAndServe(); err != nil {
-		panic(err)
+		logrus.WithError(err).Error("failed to run http server")
 	}
 }
