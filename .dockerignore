@@ -1,1 +1,4 @@
 airgradient-exporter
+.dockerignore
+Dockerfile
+.git
