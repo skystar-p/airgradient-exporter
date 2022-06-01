@@ -180,8 +180,8 @@ func checkBasicAuthCredential(r *http.Request) (bool, string) {
 	}
 	hashedUsername := sha256.Sum256([]byte(username))
 	hashedPassword := sha256.Sum256([]byte(password))
-	expectedUsernameHash := []byte(config.BasicAuthUsernameHashed)
-	expectedPasswordHash := []byte(config.BasicAuthPasswordHashed)
+	expectedUsernameHash := config.BasicAuthUsername
+	expectedPasswordHash := config.BasicAuthPassword
 
 	usernameMatch := (subtle.ConstantTimeCompare(hashedUsername[:], expectedUsernameHash[:]) == 1)
 	passwordMatch := (subtle.ConstantTimeCompare(hashedPassword[:], expectedPasswordHash[:]) == 1)

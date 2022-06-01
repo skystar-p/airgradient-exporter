@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"net/http"
 	"time"
 
@@ -18,17 +19,35 @@ type configStruct struct {
 	MaxTimeDelta int64 `env:"MAX_TIME_DELTA" envDefault:"60"`
 
 	EnableBasicAuth bool `env:"ENABLE_BASIC_AUTH" envDefault:"false"`
-	// http basic auth username, hashed with sha256
+	// http basic auth username, hashed with sha256, encoded with base64
 	BasicAuthUsernameHashed string `env:"BASIC_AUTH_USERNAME_HASHED" envDefault:""`
-	// http basic auth password, hashed with sha256
+	// http basic auth password, hashed with sha256, encoded with base64
 	BasicAuthPasswordHashed string `env:"BASIC_AUTH_PASSWORD_HASHED" envDefault:""`
+
+	// filled after env parse
+	BasicAuthUsername []byte
+	BasicAuthPassword []byte
 }
 
 var config configStruct
 
 func parseEnv() {
 	if err := env.Parse(&config); err != nil {
-		panic(err)
+		logrus.WithError(err).Fatal("failed to parse env")
+	}
+
+	if config.EnableBasicAuth {
+		u, err := base64.StdEncoding.DecodeString(config.BasicAuthUsernameHashed)
+		if err != nil {
+			logrus.WithError(err).Fatal("failed to parse basic auth username")
+		}
+		config.BasicAuthUsername = u
+
+		p, err := base64.StdEncoding.DecodeString(config.BasicAuthPasswordHashed)
+		if err != nil {
+			logrus.WithError(err).Fatal("failed to parse basic auth password")
+		}
+		config.BasicAuthPassword = p
 	}
 }
 
