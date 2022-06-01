@@ -16,6 +16,12 @@ type configStruct struct {
 	BackupFilename string `env:"BACKUP_FILENAME" envDefault:"/tmp/airgradient.json"`
 	// max time diff when restoring last metric from file
 	MaxTimeDelta int64 `env:"MAX_TIME_DELTA" envDefault:"60"`
+
+	EnableBasicAuth bool `env:"ENABLE_BASIC_AUTH" envDefault:"false"`
+	// http basic auth username, hashed with sha256
+	BasicAuthUsernameHashed string `env:"BASIC_AUTH_USERNAME_HASHED" envDefault:""`
+	// http basic auth password, hashed with sha256
+	BasicAuthPasswordHashed string `env:"BASIC_AUTH_PASSWORD_HASHED" envDefault:""`
 }
 
 var config configStruct

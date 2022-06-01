@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -32,6 +34,15 @@ var (
 )
 
 func mainHandler(w http.ResponseWriter, r *http.Request) {
+	if config.EnableBasicAuth {
+		ok, errMsg := checkBasicAuthCredential(r)
+		if !ok {
+			logrus.Error(errMsg)
+			http.Error(w, errMsg, http.StatusUnauthorized)
+			return
+		}
+	}
+
 	// read all body
 	b, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -49,6 +60,7 @@ func mainHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, errMsg, http.StatusBadRequest)
 		return
 	}
+
 	vars := mux.Vars(r)
 	// get id from variable
 	instanceId := "null"
@@ -116,6 +128,15 @@ rhum %d
 `
 
 func metricHandler(w http.ResponseWriter, r *http.Request) {
+	if config.EnableBasicAuth {
+		ok, errMsg := checkBasicAuthCredential(r)
+		if !ok {
+			logrus.Error(errMsg)
+			http.Error(w, errMsg, http.StatusUnauthorized)
+			return
+		}
+	}
+
 	// get last metric data
 	var met metric
 	metricMutex.RLock()
@@ -149,4 +170,26 @@ func metricHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, errMsg, http.StatusInternalServerError)
 		return
 	}
+}
+
+func checkBasicAuthCredential(r *http.Request) (bool, string) {
+	username, password, ok := r.BasicAuth()
+	if !ok {
+		errMsg := "failed to get basic auth credential"
+		return false, errMsg
+	}
+	hashedUsername := sha256.Sum256([]byte(username))
+	hashedPassword := sha256.Sum256([]byte(password))
+	expectedUsernameHash := []byte(config.BasicAuthUsernameHashed)
+	expectedPasswordHash := []byte(config.BasicAuthPasswordHashed)
+
+	usernameMatch := (subtle.ConstantTimeCompare(hashedUsername[:], expectedUsernameHash[:]) == 1)
+	passwordMatch := (subtle.ConstantTimeCompare(hashedPassword[:], expectedPasswordHash[:]) == 1)
+
+	if !usernameMatch || !passwordMatch {
+		errMsg := "credential mismatched"
+		return false, errMsg
+	}
+
+	return true, ""
 }
