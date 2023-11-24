@@ -33,8 +33,14 @@ var (
 	lastMetric  *metric
 )
 
-func mainHandler(w http.ResponseWriter, r *http.Request) {
-	if config.EnableBasicAuth {
+func mainHandlerWrapper(isInternal bool) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		mainHandler(w, r, isInternal)
+	}
+}
+
+func mainHandler(w http.ResponseWriter, r *http.Request, isInternal bool) {
+	if config.EnableBasicAuth && !isInternal {
 		ok, errMsg := checkBasicAuthCredential(w, r)
 		if !ok {
 			logrus.Error(errMsg)
@@ -127,8 +133,14 @@ atmp %f
 rhum %d
 `
 
-func metricHandler(w http.ResponseWriter, r *http.Request) {
-	if config.EnableBasicAuth {
+func metricHandlerWrapper(isInternal bool) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		metricHandler(w, r, isInternal)
+	}
+}
+
+func metricHandler(w http.ResponseWriter, r *http.Request, isInternal bool) {
+	if config.EnableBasicAuth && !isInternal {
 		ok, errMsg := checkBasicAuthCredential(w, r)
 		if !ok {
 			logrus.Error(errMsg)

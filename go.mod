@@ -1,6 +1,6 @@
 module github.com/skystar-p/airgradient-exporter
 
-go 1.17
+go 1.21
 
 require (
 	github.com/caarlos0/env/v6 v6.7.2

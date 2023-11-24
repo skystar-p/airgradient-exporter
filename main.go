@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/caarlos0/env/v6"
@@ -13,6 +17,8 @@ import (
 type configStruct struct {
 	// http listen addr
 	ListenAddr string `env:"LISTEN_ADDR" envDefault:"0.0.0.0:12321"`
+	// internal http listen addr. used for prometheus scraping (without auth)
+	InternalListenAddr string `env:"INTERNAL_LISTEN_ADDR" envDefault:"0.0.0.0:12322"`
 	// last metric backup file name
 	BackupFilename string `env:"BACKUP_FILENAME" envDefault:"/tmp/airgradient.json"`
 	// max time diff when restoring last metric from file
@@ -61,20 +67,73 @@ func main() {
 	}
 	logrus.SetFormatter(formatter)
 
-	r := mux.NewRouter()
-	r.HandleFunc("/metrics", metricHandler)
-	r.HandleFunc("/sensors/{id}/measures", mainHandler)
+	var (
+		server         *http.Server
+		internalServer *http.Server
+	)
 
-	server := &http.Server{
-		Addr:         config.ListenAddr,
-		Handler:      r,
-		ReadTimeout:  time.Second * 10,
-		WriteTimeout: time.Second * 10,
+	{
+		r := mux.NewRouter()
+		r.HandleFunc("/metrics", metricHandlerWrapper(false))
+		r.HandleFunc("/sensors/{id}/measures", mainHandlerWrapper(false))
+
+		server = &http.Server{
+			Addr:         config.ListenAddr,
+			Handler:      r,
+			ReadTimeout:  time.Second * 10,
+			WriteTimeout: time.Second * 10,
+		}
+	}
+	{
+		r := mux.NewRouter()
+		r.HandleFunc("/metrics", metricHandlerWrapper(true))
+		r.HandleFunc("/sensors/{id}/measures", mainHandlerWrapper(true))
+
+		internalServer = &http.Server{
+			Addr:         config.InternalListenAddr,
+			Handler:      r,
+			ReadTimeout:  time.Second * 10,
+			WriteTimeout: time.Second * 10,
+		}
 	}
 
-	logrus.Infof("serving server at %s...", config.ListenAddr)
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	doneChan := make(chan struct{}, 2)
+
+	// run internal http Server
+	go func() {
+		logrus.Infof("serving internal server at %s...", config.InternalListenAddr)
+		if err := internalServer.ListenAndServe(); err != http.ErrServerClosed {
+			logrus.WithError(err).Error("failed to run internal http server")
+		}
+		doneChan <- struct{}{}
+	}()
+
 	// run http server
-	if err := server.ListenAndServe(); err != nil {
-		logrus.WithError(err).Error("failed to run http server")
+	go func() {
+		logrus.Infof("serving server at %s...", config.ListenAddr)
+		if err := server.ListenAndServe(); err != http.ErrServerClosed {
+			logrus.WithError(err).Error("failed to run http server")
+		}
+		doneChan <- struct{}{}
+	}()
+
+	// wait for signal
+	<-sigCh
+
+	logrus.Info("shutting down http server...")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		logrus.WithError(err).Error("failed to shutdown http server")
 	}
+	if err := internalServer.Shutdown(ctx); err != nil {
+		logrus.WithError(err).Error("failed to shutdown internal http server")
+	}
+
+	<-doneChan
+	<-doneChan
 }
