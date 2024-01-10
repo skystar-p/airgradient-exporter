@@ -78,7 +78,7 @@ func mainHandler(w http.ResponseWriter, r *http.Request, isInternal bool) {
 	}
 	met.Id = instanceId
 
-	logrus.Debugf("received metric: %s", string(b))
+	logrus.Infof("received metric: %s", string(b))
 
 	// store into lastMetric
 	now := time.Now().Unix()
